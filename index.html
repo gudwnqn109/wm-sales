@@ -29,6 +29,8 @@
       }
     }
   </script>
+  <!-- Google Identity Services SDK -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <!-- Phosphor Icons CDN -->
   <script src="https://unpkg.com/@phosphor-icons/web"></script>
   <!-- FontAwesome Icons -->
@@ -47,6 +49,27 @@
   </style>
 </head>
 <body class="bg-slate-100 dark:bg-slate-950 text-slate-800 dark:text-slate-100 min-h-screen antialiased flex flex-col items-center transition-colors duration-200">
+
+  <!-- ================= 0. 구글 계정 인증 잠금 레이어 ================= -->
+  <div id="auth-overlay" class="fixed inset-0 z-50 bg-slate-900/95 backdrop-blur-md flex flex-col items-center justify-center p-4">
+    <div class="bg-white dark:bg-slate-800 rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl border border-slate-200 dark:border-slate-700 animate-fade-in">
+      <div class="w-16 h-16 rounded-2xl bg-blue-900 text-amber-400 font-black flex items-center justify-center text-2xl mx-auto mb-4 shadow-lg tracking-tighter">
+        WM
+      </div>
+      <h2 class="text-xl font-bold text-slate-900 dark:text-white mb-1">WM중부 매출장</h2>
+      <p class="text-xs text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">
+        사내 보안 승인 계정만 접근할 수 있습니다.<br>허가된 Google 계정으로 로그인해 주세요.
+      </p>
+
+      <!-- 구글 로그인 버튼 렌더링 영역 -->
+      <div id="google-login-btn" class="flex justify-center mb-4 min-h-[44px]"></div>
+
+      <!-- 에러 안내 메시지 -->
+      <div id="auth-error-msg" class="hidden text-xs text-rose-500 font-semibold bg-rose-50 dark:bg-rose-950/50 p-2.5 rounded-xl border border-rose-200 dark:border-rose-800">
+        접근 권한이 없는 계정입니다. 관리자에게 문의하세요.
+      </div>
+    </div>
+  </div>
 
   <!-- Desktop Mobile Frame Wrapper -->
   <div id="device-container" class="w-full max-w-md min-h-screen bg-slate-50 dark:bg-slate-900 shadow-2xl relative flex flex-col pb-24 border-x border-slate-200 dark:border-slate-800 transition-all duration-300">
@@ -77,6 +100,10 @@
           </button>
           <button id="theme-toggle-btn" class="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-700 transition" title="다크 모드 토글">
             <i class="ph-bold ph-moon"></i>
+          </button>
+          <!-- 로그아웃 버튼 -->
+          <button id="logout-btn" class="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 text-rose-500 flex items-center justify-center hover:bg-rose-50 dark:hover:bg-rose-950/40 transition" title="인증 로그아웃">
+            <i class="ph-bold ph-sign-out"></i>
           </button>
         </div>
       </div>
@@ -152,7 +179,7 @@
             </div>
             <div>
               <div class="flex items-center justify-between gap-1">
-                <span class="text-[11px] font-medium text-blue-200 whitespace-nowrap" id="kpi-day-label">당일 매출 (3일)</span>
+                <span class="text-[11px] font-medium text-blue-200 whitespace-nowrap" id="kpi-day-label">당일 매출</span>
                 <span id="kpi-day-rate-badge" class="text-[10px] px-1.5 py-0.5 rounded font-bold bg-amber-400 text-blue-950 whitespace-nowrap">-% 달성</span>
               </div>
               <div class="mt-1 text-lg font-black tracking-tight text-white">
@@ -169,7 +196,7 @@
           <div class="bg-white dark:bg-slate-800 rounded-xl p-3 border border-slate-200/80 dark:border-slate-700/80 shadow-sm flex flex-col justify-between">
             <div>
               <div class="flex items-center justify-between gap-1">
-                <span id="kpi-month-label" class="text-[11px] font-medium text-slate-500 dark:text-slate-400 whitespace-nowrap">11월 누계 실적</span>
+                <span id="kpi-month-label" class="text-[11px] font-medium text-slate-500 dark:text-slate-400 whitespace-nowrap">누계 실적</span>
                 <span id="kpi-month-rate-badge" class="text-[10px] px-1.5 py-0.5 rounded font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 whitespace-nowrap">-% 달성</span>
               </div>
               <div class="mt-1 text-lg font-black tracking-tight text-slate-900 dark:text-white">
@@ -182,7 +209,7 @@
             </div>
           </div>
 
-          <!-- KPI 3: 전년대비 신장률 (월간 & 연간 듀얼 비교 카드) -->
+          <!-- KPI 3: 전년대비 신장률 -->
           <div class="bg-white dark:bg-slate-800 rounded-xl p-3 border border-slate-200/80 dark:border-slate-700/80 shadow-sm flex flex-col justify-between">
             <div>
               <div class="flex items-center justify-between gap-1">
@@ -192,14 +219,14 @@
               
               <div class="grid grid-cols-2 gap-1 mt-1">
                 <div class="border-r border-slate-100 dark:border-slate-700/80 pr-1">
-                  <span id="kpi-growth-month-label" class="text-[9px] text-slate-400 block font-medium whitespace-nowrap">11월 누계</span>
+                  <span id="kpi-growth-month-label" class="text-[9px] text-slate-400 block font-medium whitespace-nowrap">당월 누계</span>
                   <div class="flex items-baseline space-x-0.5 mt-0.5 whitespace-nowrap">
                     <span id="kpi-growth-val" class="text-base font-black text-rose-600 dark:text-rose-400">0%</span>
                     <span id="kpi-growth-tag" class="text-[9px] text-rose-500 font-bold">▲</span>
                   </div>
                 </div>
                 <div class="pl-1">
-                  <span id="kpi-growth-year-label" class="text-[9px] text-slate-400 block font-medium whitespace-nowrap">26년 연누계</span>
+                  <span id="kpi-growth-year-label" class="text-[9px] text-slate-400 block font-medium whitespace-nowrap">연누계</span>
                   <div class="flex items-baseline space-x-0.5 mt-0.5 whitespace-nowrap">
                     <span id="kpi-year-growth-val" class="text-base font-black text-rose-600 dark:text-rose-400">0%</span>
                     <span id="kpi-year-growth-tag" class="text-[9px] text-rose-500 font-bold">▲</span>
@@ -218,7 +245,7 @@
           <div class="bg-white dark:bg-slate-800 rounded-xl p-3 border border-slate-200/80 dark:border-slate-700/80 shadow-sm flex flex-col justify-between">
             <div>
               <div class="flex items-center justify-between gap-1">
-                <span id="kpi-year-label" class="text-[11px] font-medium text-slate-500 dark:text-slate-400 whitespace-nowrap">26년 누계 실적</span>
+                <span id="kpi-year-label" class="text-[11px] font-medium text-slate-500 dark:text-slate-400 whitespace-nowrap">연간 누계 실적</span>
                 <span id="kpi-year-rate-badge" class="text-[10px] px-1.5 py-0.5 rounded font-bold bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300 whitespace-nowrap">-% 달성</span>
               </div>
               <div class="mt-1 text-lg font-black tracking-tight text-slate-900 dark:text-white">
@@ -275,9 +302,9 @@
             </button>
           </div>
 
-          <!-- 뷰 전환 버튼: 표(테이블) 뷰가 기본 활성화 -->
+          <!-- 뷰 전환 버튼 -->
           <div class="flex items-center bg-slate-200 dark:bg-slate-800 p-0.5 rounded-lg shrink-0">
-            <button id="view-table-btn" class="px-2 py-1 rounded-md text-xs font-semibold bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-xs transition" title="한눈에 보는 표 뷰 (기본)">
+            <button id="view-table-btn" class="px-2 py-1 rounded-md text-xs font-semibold bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-xs transition" title="한눈에 보는 표 뷰">
               <i class="ph-bold ph-table"></i>
             </button>
             <button id="view-card-btn" class="px-2 py-1 rounded-md text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 transition" title="카드 뷰">
@@ -303,9 +330,8 @@
         </div>
       </section>
 
-      <!-- 4. 매장 리스트 (표 뷰 우선 노출 & 당월 실적 / 목표 0.0 표시) -->
+      <!-- 4. 매장 리스트 -->
       <section id="store-views-wrapper">
-        <!-- 스마트 테이블 뷰 -->
         <div id="store-table-container" class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
           <div class="px-3 py-2 bg-slate-50 dark:bg-slate-900/60 border-b border-slate-200 dark:border-slate-700 text-[11px] text-slate-500 dark:text-slate-400 flex items-center justify-between">
             <span class="flex items-center font-medium"><i class="ph-bold ph-hand-tap mr-1 text-blue-600"></i>매장 클릭 시 상세 분석 팝업</span>
@@ -330,7 +356,6 @@
           </div>
         </div>
 
-        <!-- 매장 카드 뷰 (보조 뷰) -->
         <div id="store-card-list" class="hidden space-y-2.5">
           <!-- 매장 카드 렌더링 -->
         </div>
@@ -409,7 +434,6 @@
       </div>
 
       <div class="p-3.5 sm:p-4 overflow-y-auto space-y-3 text-xs flex-1">
-        <!-- [우선 노출] 매장 핵심 4대 지표 한눈에 보기 요약 표 -->
         <div class="rounded-xl border border-blue-200 dark:border-slate-700 overflow-hidden shadow-xs">
           <div class="bg-blue-900 text-white px-3 py-1.5 text-[11px] font-bold flex items-center justify-between">
             <span><i class="ph-bold ph-table mr-1"></i>핵심 실적 요약표</span>
@@ -435,7 +459,6 @@
           </table>
         </div>
 
-        <!-- 3칸 상세 메트릭 카드 -->
         <div class="grid grid-cols-3 gap-1.5 text-center">
           <div class="p-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 flex flex-col justify-between">
             <span class="text-[10px] text-slate-400 font-medium whitespace-nowrap" id="modal-daily-title">당일</span>
@@ -452,7 +475,7 @@
             </div>
           </div>
           <div class="p-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 flex flex-col justify-between">
-            <span class="text-[10px] text-slate-400 font-medium whitespace-nowrap" id="modal-year-title">26년 누계</span>
+            <span class="text-[10px] text-slate-400 font-medium whitespace-nowrap" id="modal-year-title">연간 누계</span>
             <div id="modal-year-cum-val" class="text-sm font-black text-slate-900 dark:text-white my-1 whitespace-nowrap">-</div>
             <div class="flex items-center justify-center space-x-0.5 text-[9px] tracking-tighter whitespace-nowrap">
               <span id="modal-year-cum-rate" class="font-bold text-emerald-600 dark:text-emerald-400">-</span>
@@ -462,7 +485,6 @@
           </div>
         </div>
 
-        <!-- 당월 주말(금~일) vs 평일(월~목) 매출 비중 분석 -->
         <div class="bg-blue-50/70 dark:bg-slate-800/80 p-3 rounded-xl border border-blue-100 dark:border-slate-700">
           <div class="flex items-center justify-between mb-2">
             <span class="font-bold text-slate-800 dark:text-slate-200 text-xs flex items-center">
@@ -495,10 +517,9 @@
             </div>
           </div>
 
-          <!-- 최근 주말 3일(금~일) 동적 추이 -->
           <div class="mt-2.5 pt-2 border-t border-blue-100 dark:border-slate-700 text-[10px]">
             <div class="flex items-center justify-between mb-1">
-              <span class="text-slate-400 font-medium" id="modal-recent-weekend-title">최근 주말 3일 실적 / 목표</span>
+              <span class="text-slate-400 font-medium" id="modal-recent-weekend-title">최근 주말 실적 / 목표</span>
               <span class="text-slate-400 font-medium">단위: 백만</span>
             </div>
             <div class="grid grid-cols-3 gap-1 text-center">
@@ -518,7 +539,6 @@
           </div>
         </div>
 
-        <!-- 고객 현황 및 진도율 -->
         <div class="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700">
           <div class="flex items-center justify-between mb-2">
             <span class="font-bold text-[11px] text-slate-700 dark:text-slate-300">고객 현황 및 진도율</span>
@@ -550,6 +570,82 @@
 
   <!-- ==================== JAVASCRIPT LOGIC ==================== -->
   <script>
+    // ================= [보안 인증 설정] =================
+    // 1. Google Cloud 콘솔에서 발급받은 OAuth 클라이언트 ID를 입력하세요.
+    const GOOGLE_CLIENT_ID = "663649865269-lbt4v2hn6li66v4ncjhu3pnnq5pt7vn2.apps.googleusercontent.com
+";
+
+    // 2. 접근을 허용할 구글 이메일 화이트리스트 (본인 및 팀원 이메일)
+    const ALLOWED_EMAILS = [
+      "gudwnqn109@gmail.com"
+      // "teammember1@gmail.com",
+    ];
+
+    function decodeJwtResponse(token) {
+      let base64Url = token.split('.')[1];
+      let base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      let jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+      }).join(''));
+      return JSON.parse(jsonPayload);
+    }
+
+    function handleCredentialResponse(response) {
+      try {
+        const payload = decodeJwtResponse(response.credential);
+        const userEmail = (payload.email || '').toLowerCase().trim();
+
+        const isAllowed = ALLOWED_EMAILS.some(e => e.toLowerCase().trim() === userEmail);
+
+        if (isAllowed) {
+          localStorage.setItem("wm_sales_auth_user", userEmail);
+          unlockDashboard(userEmail);
+        } else {
+          const errEl = document.getElementById("auth-error-msg");
+          errEl.classList.remove("hidden");
+          errEl.innerText = `${userEmail} 계정은 승인되지 않은 계정입니다.`;
+        }
+      } catch (e) {
+        console.error("Auth Decode Error:", e);
+      }
+    }
+
+    function unlockDashboard(email) {
+      const overlay = document.getElementById("auth-overlay");
+      if (overlay) overlay.classList.add("hidden");
+      showToast(`🔑 인증 완료: ${email}`);
+    }
+
+    function initGoogleAuth() {
+      const savedUser = localStorage.getItem("wm_sales_auth_user");
+      if (savedUser && ALLOWED_EMAILS.some(e => e.toLowerCase().trim() === savedUser.toLowerCase().trim())) {
+        unlockDashboard(savedUser);
+        return;
+      }
+
+      if (window.google && google.accounts && google.accounts.id) {
+        google.accounts.id.initialize({
+          client_id: GOOGLE_CLIENT_ID,
+          callback: handleCredentialResponse
+        });
+
+        google.accounts.id.renderButton(
+          document.getElementById("google-login-btn"),
+          { theme: "outline", size: "large", width: 260, text: "signin_with" }
+        );
+
+        google.accounts.id.prompt();
+      } else {
+        setTimeout(initGoogleAuth, 300);
+      }
+    }
+
+    function logout() {
+      localStorage.removeItem("wm_sales_auth_user");
+      location.reload();
+    }
+
+    // ================= [구글 시트 연동 설정] =================
     const SHEET_KEY = String.fromCharCode(
       49, 70, 48, 108, 49, 111, 54, 86, 114, 55, 111, 67, 82, 85, 76, 75, 48, 82, 90, 78, 84, 71,
       69, 119, 90, 112, 100, 90, 54, 90, 112, 102, 52, 53, 80, 107, 100, 72, 52, 78, 56, 50, 121, 52
@@ -766,46 +862,27 @@
       summaryLoaded = false;
       document.getElementById('currentSheetLabel').innerText = `전체 데이터 동기화중...`;
 
-      // 1. 일자별 실적 탭 로드
-      const oldScript1 = document.getElementById('gviz_sales_script');
-      if (oldScript1) oldScript1.remove();
       const script1 = document.createElement('script');
-      script1.id = 'gviz_sales_script';
       script1.src = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?headers=1&tqx=responseHandler:handleGoogleSheetSalesJSONP&sheet=${encodeURIComponent(SALES_TAB_NAME)}&t=${Date.now()}`;
       document.body.appendChild(script1);
 
-      // 2. 일자별 목표 탭 로드
-      const oldScript2 = document.getElementById('gviz_target_script');
-      if (oldScript2) oldScript2.remove();
       const script2 = document.createElement('script');
-      script2.id = 'gviz_target_script';
       script2.src = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?headers=1&tqx=responseHandler:handleGoogleSheetTargetsJSONP&sheet=${encodeURIComponent(TARGET_TAB_NAME)}&t=${Date.now()}`;
       document.body.appendChild(script2);
 
-      // 3. 일일 통합매출장 탭 로드
-      const oldScript3 = document.getElementById('gviz_daily_script');
-      if (oldScript3) oldScript3.remove();
       const script3 = document.createElement('script');
-      script3.id = 'gviz_daily_script';
       script3.src = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?headers=1&tqx=responseHandler:handleGoogleSheetDailyJSONP&sheet=${encodeURIComponent(DAILY_TAB_NAME)}&t=${Date.now()}`;
       document.body.appendChild(script3);
 
-      // 4. 지점_담당별_요약 탭 로드
-      const oldScript4 = document.getElementById('gviz_summary_script');
-      if (oldScript4) oldScript4.remove();
       const script4 = document.createElement('script');
-      script4.id = 'gviz_summary_script';
       script4.src = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?headers=1&tqx=responseHandler:handleGoogleSheetSummaryJSONP&sheet=${encodeURIComponent(SUMMARY_TAB_NAME)}&t=${Date.now()}`;
       document.body.appendChild(script4);
     }
 
-    // 1) 일자별_통합매출 파싱
     window.handleGoogleSheetSalesJSONP = function(response) {
       try {
         if (!response || !response.table || !response.table.rows) return;
-
         detectYearAndMonthFromTable(response.table);
-
         const rows = response.table.rows;
         const cols = response.table.cols || [];
         const parsed = [];
@@ -847,63 +924,35 @@
             const colIdx = day1ColIdx + (d - 1);
             const salesVal = d <= daysInMonth ? toNum(cells[colIdx]) : 0;
             dailySales[d] = salesVal;
-            if (d <= daysInMonth) {
-              daySumMap[d] = (daySumMap[d] || 0) + salesVal;
-            }
+            if (d <= daysInMonth) daySumMap[d] = (daySumMap[d] || 0) + salesVal;
           }
 
           const baseOffset = day1ColIdx + 31;
           const monthActual = toNum(cells[baseOffset]);
           const monthTarget = toNum(cells[baseOffset + 1]);
           const monthRatePlan = toPct(cells[baseOffset + 2], monthActual, monthTarget);
-
           const lastYearVal = toNum(cells[baseOffset + 3]);
           const growthRate = toPct(cells[baseOffset + 4], monthActual, lastYearVal, true);
-
           const actual26Cum = toNum(cells[baseOffset + 5]);
           const target26 = toNum(cells[baseOffset + 6]);
           const rate26Cum = toPct(cells[baseOffset + 7], actual26Cum, target26);
-
           const newCustMonth = parseInt(toNum(cells[baseOffset + 8])) || 0;
           const newCustYear = parseInt(toNum(cells[baseOffset + 9])) || 0;
           const totalCust = parseInt(toNum(cells[baseOffset + 10])) || 0;
 
           parsed.push({
-            id: i + 1,
-            branch,
-            code,
-            name: sName,
-            sv,
-            dailySales,
-            dailyTargets: {},
-            custTargetMonth: 0,
-            monthActual,
-            monthTarget,
-            monthRatePlan,
-            monthCumTarget: 0,
-            monthCumRate: 0,
-            lastYearVal,
-            growthRate,
-            actual26Cum,
-            target26,
-            rate26Cum,
-            lastYearYear: 0,
-            yearGrowthRate: 0,
-            weekendMonthSum: 0,
-            weekdayMonthSum: 0,
-            weekendShare: 0,
-            weekdayShare: 0,
-            newCustMonth,
-            newCustYear,
-            totalCust
+            id: i + 1, branch, code, name: sName, sv, dailySales, dailyTargets: {},
+            custTargetMonth: 0, monthActual, monthTarget, monthRatePlan,
+            monthCumTarget: 0, monthCumRate: 0, lastYearVal, growthRate,
+            actual26Cum, target26, rate26Cum, lastYearYear: 0, yearGrowthRate: 0,
+            weekendMonthSum: 0, weekdayMonthSum: 0, weekendShare: 0, weekdayShare: 0,
+            newCustMonth, newCustYear, totalCust
           });
         }
 
         let detectedLatestDay = 1;
         for (let d = 1; d <= daysInMonth; d++) {
-          if ((daySumMap[d] || 0) >= 1000) {
-            detectedLatestDay = d;
-          }
+          if ((daySumMap[d] || 0) >= 1000) detectedLatestDay = d;
         }
 
         rawSalesStores = parsed;
@@ -916,15 +965,11 @@
       }
     };
 
-    // 2) 일자별_통합목표 파싱
     window.handleGoogleSheetTargetsJSONP = function(response) {
       try {
         if (!response || !response.table || !response.table.rows) {
-          targetsLoaded = true;
-          checkAndMergeSheets();
-          return;
+          targetsLoaded = true; checkAndMergeSheets(); return;
         }
-
         const rows = response.table.rows;
         const cols = response.table.cols || [];
         const targetMap = {};
@@ -949,14 +994,12 @@
         for (let i = 0; i < rows.length; i++) {
           const cells = rows[i].c || [];
           const getVal = (idx) => (cells[idx] && cells[idx].v !== null && cells[idx].v !== undefined) ? cells[idx].v : '';
-
           const code = String(getVal(1)).trim();
           const sName = String(getVal(2)).trim();
           if (!code && !sName) continue;
           if (sName === '매장명' || code === '점코드') continue;
 
           const custTargetMonth = parseInt(toNum(cells[custTargetColIdx])) || 0;
-
           const dayTargets = {};
           for (let d = 1; d <= 31; d++) {
             const colIdx = day1ColIdx + (d - 1);
@@ -972,30 +1015,22 @@
         targetsLoaded = true;
         checkAndMergeSheets();
       } catch (err) {
-        console.error("Target sheet parse error:", err);
-        targetsLoaded = true;
-        checkAndMergeSheets();
+        targetsLoaded = true; checkAndMergeSheets();
       }
     };
 
-    // 3) 일일_통합매출장 파싱
     window.handleGoogleSheetDailyJSONP = function(response) {
       try {
         if (!response || !response.table || !response.table.rows) {
-          dailyLoaded = true;
-          checkAndMergeSheets();
-          return;
+          dailyLoaded = true; checkAndMergeSheets(); return;
         }
-
         detectYearAndMonthFromTable(response.table);
-
         const rows = response.table.rows;
         const dailyMap = {};
 
         for (let i = 0; i < rows.length; i++) {
           const cells = rows[i].c || [];
           const getVal = (idx) => (cells[idx] && cells[idx].v !== null && cells[idx].v !== undefined) ? cells[idx].v : '';
-
           const code = String(getVal(1)).trim();
           const sName = String(getVal(2)).trim();
           if (!code && !sName) continue;
@@ -1004,25 +1039,13 @@
           const sheetDayActual = toNum(cells[5]);
           const sheetDayTarget = toNum(cells[6]);
           const sheetDayRate = toPct(cells[7], sheetDayActual, sheetDayTarget);
-
           const lastYearYear = toNum(cells[16]);
           const yearGrowthRate = toPct(cells[17]);
-
           const newCustMonth = parseInt(toNum(cells[23])) || 0;
           const newCustYear = parseInt(toNum(cells[24])) || 0;
           const totalCust = parseInt(toNum(cells[25])) || 0;
 
-          const obj = {
-            sheetDayActual,
-            sheetDayTarget,
-            sheetDayRate,
-            lastYearYear,
-            yearGrowthRate,
-            newCustMonth,
-            newCustYear,
-            totalCust
-          };
-
+          const obj = { sheetDayActual, sheetDayTarget, sheetDayRate, lastYearYear, yearGrowthRate, newCustMonth, newCustYear, totalCust };
           if (code) dailyMap[code] = obj;
           if (sName) dailyMap[sName] = obj;
         }
@@ -1031,23 +1054,16 @@
         dailyLoaded = true;
         checkAndMergeSheets();
       } catch (err) {
-        console.error("Daily sheet parse error:", err);
-        dailyLoaded = true;
-        checkAndMergeSheets();
+        dailyLoaded = true; checkAndMergeSheets();
       }
     };
 
-    // 4) 지점_담당별_요약 파싱
     window.handleGoogleSheetSummaryJSONP = function(response) {
       try {
         if (!response || !response.table || !response.table.rows) {
-          summaryLoaded = true;
-          checkAndMergeSheets();
-          return;
+          summaryLoaded = true; checkAndMergeSheets(); return;
         }
-
         detectYearAndMonthFromTable(response.table);
-
         const rows = response.table.rows;
         const summaryMap = { branches: {}, managers: {} };
         let isManagerSection = false;
@@ -1058,10 +1074,7 @@
           const name = String(getVal(0)).trim();
           if (!name) continue;
 
-          if (name.includes('담당자')) {
-            isManagerSection = true;
-            continue;
-          }
+          if (name.includes('담당자')) { isManagerSection = true; continue; }
           if (name.includes('구분')) continue;
 
           if (!isManagerSection) {
@@ -1100,19 +1113,13 @@
         summaryLoaded = true;
         checkAndMergeSheets();
       } catch (err) {
-        console.error("Summary sheet parse error:", err);
-        summaryLoaded = true;
-        checkAndMergeSheets();
+        summaryLoaded = true; checkAndMergeSheets();
       }
     };
 
     function recalculateDynamicStoreMetrics() {
       currentStoreDB.forEach(s => {
-        let cumTarget = 0;
-        let weekendMonthSum = 0;
-        let weekdayMonthSum = 0;
-        let weekendTargetSum = 0;
-        let weekdayTargetSum = 0;
+        let cumTarget = 0, weekendMonthSum = 0, weekdayMonthSum = 0, weekendTargetSum = 0, weekdayTargetSum = 0;
 
         for (let d = 1; d <= currentDay; d++) {
           const salesVal = (s.dailySales && s.dailySales[d]) ? s.dailySales[d] : 0;
@@ -1131,7 +1138,6 @@
 
         s.monthCumTarget = cumTarget;
         s.monthCumRate = cumTarget > 0 ? Math.round((s.monthActual / cumTarget) * 1000) / 10 : 0;
-
         s.weekendMonthSum = weekendMonthSum;
         s.weekdayMonthSum = weekdayMonthSum;
         s.weekendTargetSum = weekendTargetSum;
@@ -1178,22 +1184,17 @@
         if (dInfo) {
           s.lastYearYear = dInfo.lastYearYear || 0;
           s.yearGrowthRate = dInfo.yearGrowthRate !== undefined ? dInfo.yearGrowthRate : (s.lastYearYear > 0 ? Math.round(((s.actual26Cum - s.lastYearYear) / s.lastYearYear) * 1000) / 10 : 0);
-          
           if (dInfo.newCustMonth !== undefined) s.newCustMonth = dInfo.newCustMonth;
           if (dInfo.newCustYear !== undefined) s.newCustYear = dInfo.newCustYear;
           if (dInfo.totalCust !== undefined) s.totalCust = dInfo.totalCust;
         }
 
-        s.custAchieveRate = s.custTargetMonth > 0 
-          ? Math.round((s.newCustMonth / s.custTargetMonth) * 1000) / 10 
-          : 0;
+        s.custAchieveRate = s.custTargetMonth > 0 ? Math.round((s.newCustMonth / s.custTargetMonth) * 1000) / 10 : 0;
       });
 
       let latestActiveDay = 1;
       for (let d = 1; d <= daysInMonth; d++) {
-        if ((dayTotals[d] || 0) >= 1000) {
-          latestActiveDay = d;
-        }
+        if ((dayTotals[d] || 0) >= 1000) latestActiveDay = d;
       }
 
       currentDay = Math.min(latestActiveDay, daysInMonth);
@@ -1204,7 +1205,7 @@
 
       document.getElementById('currentSheetLabel').innerText = `🟢 ${currentMonth}월 ${currentStoreDB.length}개 매장 데이터 연동 완료`;
       document.getElementById('sheetStatusDot').className = 'w-2 h-2 rounded-full bg-emerald-500 shrink-0';
-      showToast(`${currentYear}년 ${currentMonth}월 (${currentStoreDB.length}개 매장) 데이터가 연동되었습니다.`);
+      showToast(`${currentYear}년 ${currentMonth}월 (${currentStoreDB.length}개 매장) 데이터 연동 완료`);
 
       buildDayDropdown();
       updateBranchView();
@@ -1231,50 +1232,25 @@
       const sumInfo = rawSummaryMap.branches ? rawSummaryMap.branches[branchName] : null;
       const isLatestDay = (currentDay === latestDetectedDay);
 
-      let dayActual = 0, dayTarget = 0;
-      let monthActual = 0, monthCumTarget = 0, monthFullTarget = 0, lastYearVal = 0;
-      let yearActual = 0, yearTarget = 0;
-      let weekendTotal = 0, weekdayTotal = 0;
-      let weekendTargetTotal = 0, weekdayTargetTotal = 0;
+      let dayActual = 0, dayTarget = 0, monthActual = 0, monthCumTarget = 0, monthFullTarget = 0, lastYearVal = 0, yearActual = 0, yearTarget = 0;
+      let weekendTotal = 0, weekdayTotal = 0, weekendTargetTotal = 0, weekdayTargetTotal = 0;
       let totalNewCustMonth = 0, totalNewCustYear = 0, totalCustTarget = 0;
-
       const managerMap = {};
 
       stores.forEach(s => {
         const curDaySales = (s.dailySales && s.dailySales[currentDay]) ? s.dailySales[currentDay] : 0;
         const curDayTarget = (s.dailyTargets && s.dailyTargets[currentDay]) ? s.dailyTargets[currentDay] : 0;
 
-        dayActual += curDaySales;
-        dayTarget += curDayTarget;
-
-        monthActual += (s.monthActual || 0);
-        monthCumTarget += (s.monthCumTarget || 0);
-        monthFullTarget += (s.monthTarget || 0);
-        lastYearVal += (s.lastYearVal || 0);
-        yearActual += (s.actual26Cum || 0);
-        yearTarget += (s.target26 || 0);
-
-        totalNewCustMonth += (s.newCustMonth || 0);
-        totalNewCustYear += (s.newCustYear || 0);
-        totalCustTarget += (s.custTargetMonth || 0);
-
-        weekendTotal += (s.weekendMonthSum || 0);
-        weekdayTotal += (s.weekdayMonthSum || 0);
-        weekendTargetTotal += (s.weekendTargetSum || 0);
-        weekdayTargetTotal += (s.weekdayTargetSum || 0);
+        dayActual += curDaySales; dayTarget += curDayTarget;
+        monthActual += (s.monthActual || 0); monthCumTarget += (s.monthCumTarget || 0); monthFullTarget += (s.monthTarget || 0);
+        lastYearVal += (s.lastYearVal || 0); yearActual += (s.actual26Cum || 0); yearTarget += (s.target26 || 0);
+        totalNewCustMonth += (s.newCustMonth || 0); totalNewCustYear += (s.newCustYear || 0); totalCustTarget += (s.custTargetMonth || 0);
+        weekendTotal += (s.weekendMonthSum || 0); weekdayTotal += (s.weekdayMonthSum || 0);
+        weekendTargetTotal += (s.weekendTargetSum || 0); weekdayTargetTotal += (s.weekdayTargetSum || 0);
 
         const mgrKey = branchName === '중부' ? `${s.branch}지점` : s.sv;
         if (!managerMap[mgrKey]) {
-          managerMap[mgrKey] = {
-            name: mgrKey,
-            storeCount: 0,
-            actual: 0,
-            cumTarget: 0,
-            fullTarget: 0,
-            dayActual: 0,
-            dayTarget: 0,
-            lastYear: 0
-          };
+          managerMap[mgrKey] = { name: mgrKey, storeCount: 0, actual: 0, cumTarget: 0, fullTarget: 0, dayActual: 0, dayTarget: 0, lastYear: 0 };
         }
         managerMap[mgrKey].storeCount++;
         managerMap[mgrKey].actual += (s.monthActual || 0);
@@ -1290,8 +1266,7 @@
       let monthProgressRate = monthFullTarget > 0 ? Math.round((monthActual / monthFullTarget) * 1000) / 10 : 0;
       let growthRateMonth = lastYearVal > 0 ? Math.round(((monthActual - lastYearVal) / lastYearVal) * 1000) / 10 : 0;
       let yearCumRate = yearTarget > 0 ? Math.round((yearActual / yearTarget) * 1000) / 10 : 0;
-      let lastYearYear = 0;
-      let growthRateYear = 0;
+      let lastYearYear = 0, growthRateYear = 0;
 
       if (sumInfo) {
         if (isLatestDay) {
@@ -1299,16 +1274,13 @@
           dayTarget = sumInfo.dayTarget || dayTarget;
           dayRate = sumInfo.dayRate || dayRate;
         }
-
         monthActual = sumInfo.monthActual || monthActual;
         monthCumTarget = sumInfo.monthCumTarget || monthCumTarget;
         monthCumRate = sumInfo.monthCumRate || monthCumRate;
         monthFullTarget = sumInfo.monthFullTarget || monthFullTarget;
         monthProgressRate = sumInfo.monthProgressRate || monthProgressRate;
-
         lastYearVal = sumInfo.lastYearMonth || lastYearVal;
         growthRateMonth = sumInfo.growthRateMonth !== undefined ? sumInfo.growthRateMonth : growthRateMonth;
-
         yearActual = sumInfo.yearActual || yearActual;
         yearTarget = sumInfo.yearTarget || yearTarget;
         yearCumRate = sumInfo.yearRate || yearCumRate;
@@ -1340,64 +1312,27 @@
         });
       } else {
         const orderList = SV_ORDER_MAP[branchName] || Object.keys(managerMap);
-        
         managers = orderList.map(mgrName => {
           const m = managerMap[mgrName];
           if (!m || m.storeCount === 0) return null;
-          
           const sMgr = rawSummaryMap.managers ? rawSummaryMap.managers[mgrName] : null;
           const useSummaryMgr = sMgr && sMgr.storeCount === m.storeCount && isLatestDay;
 
           const rate = useSummaryMgr ? sMgr.rate : (m.cumTarget > 0 ? Math.round((m.actual / m.cumTarget) * 1000) / 10 : 0);
           const dayRate = m.dayTarget > 0 ? Math.round((m.dayActual / m.dayTarget) * 1000) / 10 : 0;
           const growth = useSummaryMgr ? sMgr.growth : (m.lastYear > 0 ? Math.round(((m.actual - m.lastYear) / m.lastYear) * 1000) / 10 : 0);
-          
-          return {
-            name: mgrName,
-            storeCount: m.storeCount,
-            actual: m.actual,
-            target: m.cumTarget,
-            rate,
-            dayActual: m.dayActual,
-            dayTarget: m.dayTarget,
-            dayRate,
-            growth
-          };
+          return { name: mgrName, storeCount: m.storeCount, actual: m.actual, target: m.cumTarget, rate, dayActual: m.dayActual, dayTarget: m.dayTarget, dayRate, growth };
         }).filter(Boolean);
-
-        Object.keys(managerMap).forEach(mgrName => {
-          if (!orderList.includes(mgrName) && managerMap[mgrName].storeCount > 0) {
-            const m = managerMap[mgrName];
-            const rate = m.cumTarget > 0 ? Math.round((m.actual / m.cumTarget) * 1000) / 10 : 0;
-            const dayRate = m.dayTarget > 0 ? Math.round((m.dayActual / m.dayTarget) * 1000) / 10 : 0;
-            const growth = m.lastYear > 0 ? Math.round(((m.actual - m.lastYear) / m.lastYear) * 1000) / 10 : 0;
-            managers.push({
-              name: mgrName,
-              storeCount: m.storeCount,
-              actual: m.actual,
-              target: m.cumTarget,
-              rate,
-              dayActual: m.dayActual,
-              dayTarget: m.dayTarget,
-              dayRate,
-              growth
-            });
-          }
-        });
       }
 
       return {
         name: branchName === '중부' ? '중부영업팀' : `${branchName}지점`,
         storeCount: sumInfo ? sumInfo.storeCount : stores.length,
         kpi: {
-          dayActual, dayTarget, dayRate,
-          monthActual, monthCumTarget, monthCumRate,
-          monthFullTarget, monthProgressRate,
-          growthRateMonth, lastYearVal,
-          yearActual, yearTarget, yearCumRate,
-          lastYearYear, growthRateYear,
-          weekendTotal, weekdayTotal, weekendRate, weekdayRate,
-          weekendTargetTotal, weekdayTargetTotal,
+          dayActual, dayTarget, dayRate, monthActual, monthCumTarget, monthCumRate,
+          monthFullTarget, monthProgressRate, growthRateMonth, lastYearVal,
+          yearActual, yearTarget, yearCumRate, lastYearYear, growthRateYear,
+          weekendTotal, weekdayTotal, weekendRate, weekdayRate, weekendTargetTotal, weekdayTargetTotal,
           totalNewCustMonth, totalNewCustYear, totalCustTarget
         },
         managers
@@ -1406,7 +1341,6 @@
 
     function updateBranchView() {
       recalculateDynamicStoreMetrics();
-
       const stats = getBranchStats(currentBranch);
       const kpi = stats.kpi;
       const dayOfWeek = getDayOfWeek(currentDay);
@@ -1422,23 +1356,19 @@
       document.getElementById('kpi-year-label').innerText = `${shortYear}년 누계 실적`;
 
       const daySelect = document.getElementById('day-select-dropdown');
-      if (daySelect && daySelect.value != currentDay) {
-        daySelect.value = currentDay;
-      }
+      if (daySelect && daySelect.value != currentDay) daySelect.value = currentDay;
 
       document.getElementById('kpi-section-title').innerText = `${stats.name} 실적 현황`;
       document.getElementById('manager-section-title').innerText = currentBranch === '중부' ? '중부영업팀 지점별 실적 요약' : `${stats.name} 담당별 실적 현황`;
       document.getElementById('branch-store-count').innerText = `${stats.storeCount}개 매장`;
       document.getElementById('chip-all-count').innerText = stats.storeCount;
 
-      // 1. 당일 실적
       document.getElementById('kpi-day-rate-badge').innerText = `${Math.round(kpi.dayRate)}% 달성`;
       document.getElementById('kpi-day-actual').innerText = toMillionInt(kpi.dayActual);
       document.getElementById('kpi-day-target').innerText = `${toMillionInt(kpi.dayTarget)}백만`;
       const dayDiff = Math.round((kpi.dayActual - kpi.dayTarget) / 1000);
       document.getElementById('kpi-day-diff').innerText = dayDiff >= 0 ? `+${dayDiff.toLocaleString('ko-KR')}백만 초과` : `${dayDiff.toLocaleString('ko-KR')}백만 미달`;
 
-      // 2. 당월 누계 실적
       document.getElementById('kpi-month-rate-badge').innerText = `${Math.round(kpi.monthCumRate)}% 달성`;
       document.getElementById('kpi-month-actual').innerText = toMillionInt(kpi.monthActual);
       document.getElementById('kpi-month-target').innerText = `${toMillionInt(kpi.monthCumTarget)}백만`;
@@ -1452,7 +1382,6 @@
         monthDiffElem.className = 'text-rose-500 dark:text-rose-400 font-bold';
       }
 
-      // 3. 전년대비 신장률
       document.getElementById('kpi-growth-val').innerText = `${kpi.growthRateMonth >= 0 ? '+' : ''}${kpi.growthRateMonth.toFixed(1)}%`;
       document.getElementById('kpi-growth-tag').innerText = kpi.growthRateMonth >= 0 ? '▲' : '▼';
       document.getElementById('kpi-growth-val').className = `text-base font-black ${kpi.growthRateMonth >= 0 ? 'text-rose-600 dark:text-rose-400' : 'text-blue-600 dark:text-blue-400'}`;
@@ -1465,7 +1394,6 @@
       document.getElementById('kpi-year-growth-tag').className = `text-[9px] font-bold ${kpi.growthRateYear >= 0 ? 'text-rose-500' : 'text-blue-500'}`;
       document.getElementById('kpi-lastyear-year-val').innerText = toMillionInt(kpi.lastYearYear);
 
-      // 4. 연간 누계 실적
       document.getElementById('kpi-year-rate-badge').innerText = `${kpi.yearCumRate.toFixed(1)}% 달성`;
       document.getElementById('kpi-year-actual').innerText = toMillionInt(kpi.yearActual);
       document.getElementById('kpi-year-target').innerText = `${toMillionInt(kpi.yearTarget)}백만`;
@@ -1479,7 +1407,6 @@
         yearDiffElem.className = 'text-rose-500 dark:text-rose-400 font-bold';
       }
 
-      // 지점별 / 담당별 카드 렌더링
       const svContainer = document.getElementById('sv-card-container');
       const isFourCols = stats.managers.length === 4;
       svContainer.className = isFourCols ? 'grid grid-cols-4 gap-1.5' : 'grid grid-cols-3 gap-2';
@@ -1504,12 +1431,7 @@
       svContainer.querySelectorAll('.sv-filter-btn').forEach(card => {
         card.addEventListener('click', () => {
           const sv = card.getAttribute('data-sv');
-          if (currentSvFilter === sv) {
-            currentSvFilter = null;
-          } else {
-            currentSvFilter = sv;
-            showToast(`${sv} 필터링 적용`);
-          }
+          currentSvFilter = currentSvFilter === sv ? null : sv;
           updateBranchView();
           renderApp();
         });
@@ -1565,7 +1487,6 @@
       if (filtered.length > 0) {
         const topPerformer = filtered[0];
         const topDaySales = (topPerformer.dailySales && topPerformer.dailySales[currentDay]) ? topPerformer.dailySales[currentDay] : 0;
-
         document.getElementById('top-store-name').innerText = topPerformer.name;
         
         if (currentSort === 'month_desc') {
@@ -1581,17 +1502,12 @@
         }
       }
 
-      if (viewMode === 'table') {
-        renderTableView(filtered);
-      } else {
-        renderCardView(filtered);
-      }
+      if (viewMode === 'table') renderTableView(filtered);
+      else renderCardView(filtered);
     }
 
-    // [요청 반영] 당월 실적을 메인으로, 아래 작은 글씨로 '목표 0.0' 표시
     function renderTableView(data) {
       const tbody = document.getElementById('store-table-body');
-
       document.getElementById('th-day-col').innerText = `당일 실적`;
       document.getElementById('th-month-target-col').innerText = `당월 실적`;
 
@@ -1644,12 +1560,7 @@
       const shortYear = getShortYear();
 
       if (data.length === 0) {
-        container.innerHTML = `
-          <div class="py-12 text-center text-slate-400">
-            <i class="ph-bold ph-storefront text-4xl mb-2 inline-block"></i>
-            <p class="text-xs">조건에 일치하는 매장이 없습니다.</p>
-          </div>
-        `;
+        container.innerHTML = `<div class="py-12 text-center text-slate-400"><p class="text-xs">조건에 일치하는 매장이 없습니다.</p></div>`;
         return;
       }
 
@@ -1695,7 +1606,7 @@
 
             <div class="mt-2 pt-2 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between text-[10px]">
               <div class="flex items-center space-x-1.5 truncate text-slate-500 dark:text-slate-400">
-                <span>월진척률: <strong class="text-slate-800 dark:text-slate-200">${s.monthRatePlan.toFixed(1)}%</strong> (월계획 ${toMillion(s.monthTarget)}백만)</span>
+                <span>월진척률: <strong class="text-slate-800 dark:text-slate-200">${s.monthRatePlan.toFixed(1)}%</strong></span>
                 <span class="text-slate-300 dark:text-slate-600">·</span>
                 <span>${shortYear}년: ${s.rate26Cum.toFixed(1)}% (${yGrowth >= 0 ? '+' : ''}${yGrowth.toFixed(1)}%)</span>
               </div>
@@ -1719,7 +1630,6 @@
       document.getElementById('modal-store-name').innerText = s.name;
       document.getElementById('modal-store-code').innerText = s.code;
       document.getElementById('modal-store-sv').innerText = `${s.sv} 담당 (${s.branch})`;
-
       document.getElementById('modal-open-info').innerText = `당일목표: ${toMillion(curDayTarget)}백만 | 월계획: ${toMillion(s.monthTarget)}백만 | 연목표: ${toMillion(s.target26)}백만`;
 
       document.getElementById('modal-tbl-daily').innerText = `${toMillion(curDaySales)}백만`;
@@ -1835,9 +1745,7 @@
       const topDayRate = topDayTarget > 0 ? (topDaySales / topDayTarget) * 100 : 0;
 
       const topMonthStore = [...currentBranchStores].sort((a,b) => b.monthCumRate - a.monthCumRate)[0] || currentBranchStores[0];
-
       let managerLines = stats.managers.map(m => ` • ${m.name} (${m.storeCount}개점): 당일 ${toMillion(m.dayActual)}백만 (${m.dayRate.toFixed(1)}%) / ${currentMonth}월누계 ${toMillion(m.actual)}백만 (누계달성 ${m.rate.toFixed(1)}% / ${m.growth >= 0 ? '+' : ''}${m.growth.toFixed(1)}%)`).join('\n');
-
       const custAchieveRate = kpi.totalCustTarget > 0 ? ((kpi.totalNewCustMonth / kpi.totalCustTarget) * 100).toFixed(1) + '%' : '-';
 
       return `📊 [WM 웰메이드] ${stats.name} 일일 매출 마감 보고
@@ -1916,7 +1824,7 @@ ${managerLines}
 
           currentBranch = tabBtn.getAttribute('data-branch');
           currentSvFilter = null;
-          showToast(`🏢 ${BRANCH_TITLE_MAP[currentBranch] || currentBranch} 화면으로 전환되었습니다.`);
+          showToast(`🏢 ${BRANCH_TITLE_MAP[currentBranch] || currentBranch} 화면으로 전환`);
           updateBranchView();
         });
       });
@@ -1924,14 +1832,14 @@ ${managerLines}
       document.getElementById('day-select-dropdown').addEventListener('change', (e) => {
         currentDay = parseInt(e.target.value, 10);
         updateBranchView();
-        showToast(`📅 ${currentMonth}월 ${currentDay}일 (${getDayOfWeek(currentDay)}) 실적으로 전환되었습니다.`);
+        showToast(`📅 ${currentMonth}월 ${currentDay}일 (${getDayOfWeek(currentDay)}) 실적 전환`);
       });
 
       document.getElementById('prev-day-btn').addEventListener('click', () => {
         if (currentDay > 1) {
           currentDay--;
           updateBranchView();
-          showToast(`📅 ${currentMonth}월 ${currentDay}일 (${getDayOfWeek(currentDay)}) 실적으로 전환되었습니다.`);
+          showToast(`📅 ${currentMonth}월 ${currentDay}일 (${getDayOfWeek(currentDay)}) 실적 전환`);
         } else {
           showToast(`${currentMonth}월 1일이 첫 시작일입니다.`);
         }
@@ -1942,7 +1850,7 @@ ${managerLines}
         if (currentDay < maxDay) {
           currentDay++;
           updateBranchView();
-          showToast(`📅 ${currentMonth}월 ${currentDay}일 (${getDayOfWeek(currentDay)}) 실적으로 전환되었습니다.`);
+          showToast(`📅 ${currentMonth}월 ${currentDay}일 (${getDayOfWeek(currentDay)}) 실적 전환`);
         } else {
           showToast(`${currentMonth}월 ${maxDay}일이 마지막 일자입니다.`);
         }
@@ -2022,20 +1930,21 @@ ${managerLines}
           container.classList.remove('max-w-md');
           container.classList.add('max-w-4xl');
           isDesktopFrame = false;
-          showToast('🖥️ 대시보드 와이드 모드로 확장되었습니다.');
+          showToast('🖥️ 대시보드 와이드 모드 전환');
         } else {
           container.classList.remove('max-w-4xl');
           container.classList.add('max-w-md');
           isDesktopFrame = true;
-          showToast('📱 모바일 스마트폰 뷰로 전환되었습니다.');
+          showToast('📱 모바일 스마트폰 뷰 전환');
         }
       });
 
       document.getElementById('theme-toggle-btn').addEventListener('click', () => {
         const isDark = document.documentElement.classList.toggle('dark');
-        showToast(isDark ? '🌙 다크 모드가 적용되었습니다.' : '☀️ 라이트 모드가 적용되었습니다.');
+        showToast(isDark ? '🌙 다크 모드' : '☀️ 라이트 모드');
       });
 
+      document.getElementById('logout-btn').addEventListener('click', logout);
       document.getElementById('close-detail-modal-btn').addEventListener('click', closeDetailModal);
       document.getElementById('modal-close-action-btn').addEventListener('click', closeDetailModal);
 
@@ -2072,6 +1981,7 @@ ${managerLines}
     };
 
     window.onload = function () {
+      initGoogleAuth();
       setupEventListeners();
       buildDayDropdown();
       updateBranchView();
